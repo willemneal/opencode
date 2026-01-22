@@ -11,7 +11,7 @@ struct Frontmatter {
 
 /// Parse cargo frontmatter from source file
 /// Format:
-/// ```
+/// ```text
 /// #!/usr/bin/env -S cargo +nightly -Zscript
 /// ---cargo
 /// [package]

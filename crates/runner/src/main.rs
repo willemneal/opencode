@@ -1,11 +1,7 @@
-mod cache;
-mod compiler;
-mod executor;
-mod metadata;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use wasi_runner::{ensure_compiled, extract, is_cached, list_tools, run_wasm, Capabilities};
 
 #[derive(Parser)]
 #[command(name = "wasi-runner")]
@@ -70,15 +66,15 @@ fn main() -> Result<()> {
             allow_net,
             args,
         } => {
-            let wasm_path = compiler::ensure_compiled(&project_root, &path)?;
+            let wasm_path = ensure_compiled(&project_root, &path)?;
 
-            let caps = executor::Capabilities {
+            let caps = Capabilities {
                 read_dirs: allow_read,
                 write_dirs: allow_write,
                 allow_net,
             };
 
-            let result = executor::run_wasm(&wasm_path, &args, &caps)?;
+            let result = run_wasm(&wasm_path, &args, &caps)?;
 
             print!("{}", result.stdout);
             eprint!("{}", result.stderr);
@@ -87,19 +83,19 @@ fn main() -> Result<()> {
         }
 
         Commands::Describe { path } => {
-            let wasm_path = compiler::ensure_compiled(&project_root, &path)?;
-            let meta = metadata::extract(&wasm_path)?;
+            let wasm_path = ensure_compiled(&project_root, &path)?;
+            let meta = extract(&wasm_path)?;
             println!("{}", serde_json::to_string_pretty(&meta)?);
         }
 
         Commands::List { path } => {
-            let tools = metadata::list_tools(&path)?;
+            let tools = list_tools(&path)?;
             for tool in tools {
                 println!("{}", tool.display());
             }
         }
 
-        Commands::Check { path } => match cache::is_cached(&project_root, &path)? {
+        Commands::Check { path } => match is_cached(&project_root, &path)? {
             Some(cached) => {
                 println!("cached: {}", cached.display());
                 std::process::exit(0);

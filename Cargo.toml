@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/runner", "crates/wasi-tool-error"]
+members = ["crates/runner", "crates/wasi-runner-lib", "crates/wasi-tool-error"]
 resolver = "2"
 
 [workspace.dependencies]
