@@ -54,6 +54,17 @@ impl BaseError {
     }
 }
 
+/// WASI target for compilation and execution
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WasiTarget {
+    /// WASI preview1 - simpler, full exit code support, no networking
+    #[default]
+    Preview1,
+    /// WASI preview2 - networking support via wasi-http, exit codes limited to 0/1
+    Preview2,
+}
+
 /// Tool metadata embedded in binaries, returned via --describe
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolMetadata {
@@ -63,6 +74,9 @@ pub struct ToolMetadata {
     pub args: Vec<ArgSpec>,
     pub errors: Vec<ErrorSpec>,
     pub capabilities: Capabilities,
+    /// WASI target (preview1 or preview2). Required to be preview2 if net capability is true.
+    #[serde(default)]
+    pub wasi_target: WasiTarget,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

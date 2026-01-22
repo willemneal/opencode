@@ -1,7 +1,10 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use wasi_runner::{ensure_compiled, extract, is_cached, list_tools, run_wasm, Capabilities};
+use wasi_runner::{
+    ensure_compiled, extract, extract_target_from_source, is_cached, list_tools, run_wasm,
+    Capabilities,
+};
 
 #[derive(Parser)]
 #[command(name = "wasi-runner")]
@@ -66,6 +69,7 @@ fn main() -> Result<()> {
             allow_net,
             args,
         } => {
+            let target = extract_target_from_source(&path)?;
             let wasm_path = ensure_compiled(&project_root, &path)?;
 
             let caps = Capabilities {
@@ -74,7 +78,7 @@ fn main() -> Result<()> {
                 allow_net,
             };
 
-            let result = run_wasm(&wasm_path, &args, &caps)?;
+            let result = run_wasm(&wasm_path, &args, &caps, target)?;
 
             print!("{}", result.stdout);
             eprint!("{}", result.stderr);
@@ -83,8 +87,9 @@ fn main() -> Result<()> {
         }
 
         Commands::Describe { path } => {
+            let target = extract_target_from_source(&path)?;
             let wasm_path = ensure_compiled(&project_root, &path)?;
-            let meta = extract(&wasm_path)?;
+            let meta = extract(&wasm_path, target)?;
             println!("{}", serde_json::to_string_pretty(&meta)?);
         }
 

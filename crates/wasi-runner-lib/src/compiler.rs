@@ -2,11 +2,13 @@ use crate::cache;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use wasi_tool_error::WasiTarget;
 
 /// Parsed cargo frontmatter from a script
 struct Frontmatter {
     manifest: String,
     code: String,
+    wasi_target: WasiTarget,
 }
 
 /// Parse cargo frontmatter from source file
@@ -44,7 +46,39 @@ fn parse_frontmatter(source: &str) -> Result<Frontmatter> {
     // Extract code (after closing ---)
     let code = lines[end + 1..].join("\n");
 
-    Ok(Frontmatter { manifest, code })
+    // Parse wasi_target from [package.metadata.wasi-tool]
+    let parsed: toml::Value = toml::from_str(&manifest).context("Failed to parse manifest TOML")?;
+    let wasi_target = parsed
+        .get("package")
+        .and_then(|p| p.get("metadata"))
+        .and_then(|m| m.get("wasi-tool"))
+        .and_then(|w| w.get("wasi_target"))
+        .and_then(|v| v.as_str())
+        .map(|s| match s {
+            "preview2" => WasiTarget::Preview2,
+            _ => WasiTarget::Preview1,
+        })
+        .unwrap_or_default();
+
+    // Validate: net capability requires preview2
+    let net = parsed
+        .get("package")
+        .and_then(|p| p.get("metadata"))
+        .and_then(|m| m.get("wasi-tool"))
+        .and_then(|w| w.get("capabilities"))
+        .and_then(|c| c.get("net"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if net && wasi_target != WasiTarget::Preview2 {
+        anyhow::bail!("net capability requires wasi_target = \"preview2\"");
+    }
+
+    Ok(Frontmatter {
+        manifest,
+        code,
+        wasi_target,
+    })
 }
 
 /// Ensure a tool is compiled, returning path to WASM
@@ -129,14 +163,21 @@ fn compile_to_wasi(project_root: &Path, source: &Path, output: &Path) -> Result<
         })
         .unwrap_or("tool");
 
-    // Build with cargo targeting WASI
+    // Select target and toolchain based on wasi_target
+    let (target, toolchain) = match frontmatter.wasi_target {
+        WasiTarget::Preview1 => ("wasm32-wasip1", "+nightly"),
+        // Use nightly-2024-12-15 for preview2 which has WASI 0.2.2 compatible std library
+        // This is required for wasi-http-client which depends on wasi 0.13 (WASI 0.2.2)
+        WasiTarget::Preview2 => ("wasm32-wasip2", "+nightly-2024-12-15"),
+    };
+
     let cargo_output = Command::new("cargo")
         .args([
-            "+nightly",
+            toolchain,
             "build",
             "--release",
             "--target",
-            "wasm32-wasip1",
+            target,
             "-p",
             bin_name,
         ])
@@ -152,7 +193,7 @@ fn compile_to_wasi(project_root: &Path, source: &Path, output: &Path) -> Result<
     // Copy the compiled WASM to cache
     let wasm_source = build_dir
         .join("target")
-        .join("wasm32-wasip1")
+        .join(target)
         .join("release")
         .join(format!("{}.wasm", bin_name));
 

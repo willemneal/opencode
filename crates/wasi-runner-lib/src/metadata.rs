@@ -1,17 +1,17 @@
 use crate::executor::{self, Capabilities};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use wasi_tool_error::ToolMetadata;
+use wasi_tool_error::{ToolMetadata, WasiTarget};
 
 /// Extract metadata from a compiled WASM tool by running --describe
-pub fn extract(wasm_path: &Path) -> Result<ToolMetadata> {
+pub fn extract(wasm_path: &Path, target: WasiTarget) -> Result<ToolMetadata> {
     let caps = Capabilities {
         read_dirs: vec![],
         write_dirs: vec![],
         allow_net: false,
     };
 
-    let result = executor::run_wasm(wasm_path, &["--describe".to_string()], &caps)?;
+    let result = executor::run_wasm(wasm_path, &["--describe".to_string()], &caps, target)?;
 
     if result.exit_code != 0 {
         anyhow::bail!(
@@ -22,6 +22,46 @@ pub fn extract(wasm_path: &Path) -> Result<ToolMetadata> {
     }
 
     serde_json::from_str(&result.stdout).context("Failed to parse tool metadata")
+}
+
+/// Extract just the WasiTarget from a source file's frontmatter
+pub fn extract_target_from_source(source: &Path) -> Result<WasiTarget> {
+    let content = std::fs::read_to_string(source).context("Failed to read source file")?;
+    extract_target_from_frontmatter(&content)
+}
+
+fn extract_target_from_frontmatter(source: &str) -> Result<WasiTarget> {
+    let lines: Vec<&str> = source.lines().collect();
+
+    let start = lines
+        .iter()
+        .position(|line| line.trim() == "---cargo")
+        .context("No ---cargo frontmatter found")?;
+
+    let end = lines
+        .iter()
+        .skip(start + 1)
+        .position(|line| line.trim() == "---")
+        .context("No closing --- for frontmatter")?
+        + start
+        + 1;
+
+    let manifest = lines[start + 1..end].join("\n");
+    let parsed: toml::Value = toml::from_str(&manifest).context("Failed to parse manifest TOML")?;
+
+    let wasi_target = parsed
+        .get("package")
+        .and_then(|p| p.get("metadata"))
+        .and_then(|m| m.get("wasi-tool"))
+        .and_then(|w| w.get("wasi_target"))
+        .and_then(|v| v.as_str())
+        .map(|s| match s {
+            "preview2" => WasiTarget::Preview2,
+            _ => WasiTarget::Preview1,
+        })
+        .unwrap_or_default();
+
+    Ok(wasi_target)
 }
 
 /// Extract metadata from the cargo frontmatter of a source file
@@ -98,6 +138,21 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
             .unwrap_or(false),
     };
 
+    // Parse wasi_target
+    let wasi_target = metadata
+        .get("wasi_target")
+        .and_then(|v| v.as_str())
+        .map(|s| match s {
+            "preview2" => wasi_tool_error::WasiTarget::Preview2,
+            _ => wasi_tool_error::WasiTarget::Preview1,
+        })
+        .unwrap_or_default();
+
+    // Validate: net capability requires preview2
+    if capabilities.net && wasi_target != wasi_tool_error::WasiTarget::Preview2 {
+        anyhow::bail!("net capability requires wasi_target = \"preview2\"");
+    }
+
     // Parse args if present
     let args = metadata
         .get("args")
@@ -150,6 +205,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         args,
         errors,
         capabilities,
+        wasi_target,
     })
 }
 

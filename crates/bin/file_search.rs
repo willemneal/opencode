@@ -4,6 +4,14 @@
 name = "file_search"
 edition = "2024"
 
+[package.metadata.wasi-tool]
+wasi_target = "preview1"
+
+[package.metadata.wasi-tool.capabilities]
+read = true
+write = false
+net = false
+
 [dependencies]
 serde_json = { workspace = true }
 glob = { workspace = true }
@@ -13,7 +21,7 @@ wasi-tool-error = { workspace = true }
 
 use clap::Parser;
 use std::process;
-use wasi_tool_error::{ArgSpec, Capabilities, ErrorSpec, ToolMetadata};
+use wasi_tool_error::{ArgSpec, Capabilities, ErrorSpec, ToolMetadata, WasiTarget};
 
 #[derive(Parser)]
 #[command(name = "file_search")]
@@ -68,6 +76,7 @@ fn metadata() -> ToolMetadata {
             write: false,
             net: false,
         },
+        wasi_target: WasiTarget::Preview1,
     }
 }
 
