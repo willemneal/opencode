@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use wasi_tool_error::{ToolMetadata, WasiTarget};
 
 /// Extract metadata from a compiled WASM tool by running --describe
+///
+/// # Errors
+/// Returns an error if the tool fails to run or returns invalid metadata.
 pub fn extract(wasm_path: &Path, target: WasiTarget) -> Result<ToolMetadata> {
     let caps = Capabilities {
         read_dirs: vec![],
@@ -24,7 +27,10 @@ pub fn extract(wasm_path: &Path, target: WasiTarget) -> Result<ToolMetadata> {
     serde_json::from_str(&result.stdout).context("Failed to parse tool metadata")
 }
 
-/// Extract just the WasiTarget from a source file's frontmatter
+/// Extract just the `WasiTarget` from a source file's frontmatter
+///
+/// # Errors
+/// Returns an error if the source file cannot be read or has invalid frontmatter.
 pub fn extract_target_from_source(source: &Path) -> Result<WasiTarget> {
     let content = std::fs::read_to_string(source).context("Failed to read source file")?;
     extract_target_from_frontmatter(&content)
@@ -66,12 +72,16 @@ fn extract_target_from_frontmatter(source: &str) -> Result<WasiTarget> {
 
 /// Extract metadata from the cargo frontmatter of a source file
 /// Looks for [package.metadata.wasi-tool] section
+///
+/// # Errors
+/// Returns an error if the source file cannot be read or has invalid frontmatter.
 pub fn extract_from_source(source: &Path) -> Result<ToolMetadata> {
     let content = std::fs::read_to_string(source).context("Failed to read source file")?;
     extract_from_frontmatter(&content)
 }
 
 /// Parse metadata from cargo frontmatter content
+#[allow(clippy::too_many_lines)]
 fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
     let lines: Vec<&str> = source.lines().collect();
 
@@ -126,15 +136,15 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
     let capabilities = wasi_tool_error::Capabilities {
         read: caps
             .and_then(|c| c.get("read"))
-            .and_then(|v| v.as_bool())
+            .and_then(toml::Value::as_bool)
             .unwrap_or(false),
         write: caps
             .and_then(|c| c.get("write"))
-            .and_then(|v| v.as_bool())
+            .and_then(toml::Value::as_bool)
             .unwrap_or(false),
         net: caps
             .and_then(|c| c.get("net"))
-            .and_then(|v| v.as_bool())
+            .and_then(toml::Value::as_bool)
             .unwrap_or(false),
     };
 
@@ -170,7 +180,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
                             .to_string(),
                         required: arg
                             .get("required")
-                            .and_then(|v| v.as_bool())
+                            .and_then(toml::Value::as_bool)
                             .unwrap_or(false),
                         default: arg
                             .get("default")
@@ -189,6 +199,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         .map(|arr| {
             arr.iter()
                 .filter_map(|err| {
+                    #[allow(clippy::cast_possible_truncation)]
                     Some(wasi_tool_error::ErrorSpec {
                         code: err.get("code")?.as_integer()? as i32,
                         message: err.get("message")?.as_str()?.to_string(),
@@ -210,6 +221,9 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
 }
 
 /// List all .rs tool files in a directory
+///
+/// # Errors
+/// Returns an error if the directory cannot be read.
 pub fn list_tools(dir: &Path) -> Result<Vec<PathBuf>> {
     let mut tools = Vec::new();
 
@@ -221,7 +235,7 @@ pub fn list_tools(dir: &Path) -> Result<Vec<PathBuf>> {
         let entry = entry?;
         let path = entry.path();
 
-        if path.extension().map(|e| e == "rs").unwrap_or(false) {
+        if path.extension().is_some_and(|e| e == "rs") {
             tools.push(path);
         }
     }

@@ -41,6 +41,7 @@ pub enum BaseError {
 }
 
 impl BaseError {
+    #[must_use]
     pub fn code(&self) -> i32 {
         match self {
             Self::InvalidArgs(_) => codes::INVALID_ARGS,
@@ -107,6 +108,9 @@ pub struct Capabilities {
 }
 
 /// Helper to print metadata JSON for --describe flag
+///
+/// # Panics
+/// Panics if metadata cannot be serialized to JSON (should never happen with valid metadata).
 pub fn print_metadata(metadata: &ToolMetadata) {
     println!("{}", serde_json::to_string(metadata).unwrap());
 }

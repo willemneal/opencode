@@ -67,7 +67,7 @@ fn parse_frontmatter(source: &str) -> Result<Frontmatter> {
         .and_then(|m| m.get("wasi-tool"))
         .and_then(|w| w.get("capabilities"))
         .and_then(|c| c.get("net"))
-        .and_then(|v| v.as_bool())
+        .and_then(toml::Value::as_bool)
         .unwrap_or(false);
 
     if net && wasi_target != WasiTarget::Preview2 {
@@ -82,6 +82,9 @@ fn parse_frontmatter(source: &str) -> Result<Frontmatter> {
 }
 
 /// Ensure a tool is compiled, returning path to WASM
+///
+/// # Errors
+/// Returns an error if compilation fails or the source file cannot be read.
 pub fn ensure_compiled(project_root: &Path, source: &Path) -> Result<PathBuf> {
     // Check cache first
     if let Some(cached) = cache::is_cached(project_root, source)? {
@@ -187,7 +190,7 @@ fn compile_to_wasi(project_root: &Path, source: &Path, output: &Path) -> Result<
 
     if !cargo_output.status.success() {
         let stderr = String::from_utf8_lossy(&cargo_output.stderr);
-        anyhow::bail!("Compilation failed: {}", stderr);
+        anyhow::bail!("Compilation failed: {stderr}");
     }
 
     // Copy the compiled WASM to cache
@@ -195,7 +198,7 @@ fn compile_to_wasi(project_root: &Path, source: &Path, output: &Path) -> Result<
         .join("target")
         .join(target)
         .join("release")
-        .join(format!("{}.wasm", bin_name));
+        .join(format!("{bin_name}.wasm"));
 
     if !wasm_source.exists() {
         anyhow::bail!("Compiled WASM not found at {}", wasm_source.display());

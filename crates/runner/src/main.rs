@@ -2,8 +2,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use wasi_runner::{
-    ensure_compiled, extract, extract_target_from_source, is_cached, list_tools, run_wasm,
-    Capabilities,
+    Capabilities, ensure_compiled, extract, extract_target_from_source, is_cached, list_tools,
+    run_wasm,
 };
 
 #[derive(Parser)]
@@ -100,16 +100,15 @@ fn main() -> Result<()> {
             }
         }
 
-        Commands::Check { path } => match is_cached(&project_root, &path)? {
-            Some(cached) => {
+        Commands::Check { path } => {
+            if let Some(cached) = is_cached(&project_root, &path)? {
                 println!("cached: {}", cached.display());
                 std::process::exit(0);
-            }
-            None => {
+            } else {
                 println!("needs compilation");
                 std::process::exit(1);
             }
-        },
+        }
     }
 
     Ok(())

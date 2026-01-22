@@ -17,6 +17,9 @@ pub struct ExecutionResult {
 }
 
 /// Run a WASM module/component with the appropriate WASI runtime
+///
+/// # Errors
+/// Returns an error if the WASM module fails to load or execute.
 pub fn run_wasm(
     wasm_path: &Path,
     args: &[String],
@@ -97,7 +100,7 @@ fn run_preview1(wasm_path: &Path, args: &[String], caps: &Capabilities) -> Resul
             if let Some(exit) = e.downcast_ref::<I32Exit>() {
                 exit.0
             } else {
-                eprintln!("WASM trap: {}", e);
+                eprintln!("WASM trap: {e}");
                 1
             }
         }
@@ -211,7 +214,7 @@ fn run_preview2(wasm_path: &Path, args: &[String], caps: &Capabilities) -> Resul
         Ok(Ok(())) => 0,
         Ok(Err(())) => 1,
         Err(e) => {
-            eprintln!("WASM trap: {}", e);
+            eprintln!("WASM trap: {e}");
             1
         }
     };
