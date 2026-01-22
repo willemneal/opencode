@@ -1,9 +1,9 @@
-use std::path::PathBuf;
-use std::process::Command;
-
 mod file_search;
 mod github_pr_search;
 mod list_files;
+
+use std::path::PathBuf;
+use std::process::Command;
 
 fn project_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-/// Standard exit codes (0-99 reserved for common errors)
+/// Standard exit codes (0-99 reserved for common errors).
 pub mod codes {
     pub const SUCCESS: i32 = 0;
     pub const INVALID_ARGS: i32 = 1;
@@ -11,11 +11,11 @@ pub mod codes {
     pub const PARSE_ERROR: i32 = 5;
     pub const TIMEOUT: i32 = 6;
     pub const INTERNAL_ERROR: i32 = 99;
-    /// Tool-specific errors start at 100
+    /// Tool-specific errors start at 100.
     pub const TOOL_SPECIFIC_START: i32 = 100;
 }
 
-/// Base errors that all tools can use or extend with #[error(transparent)]
+/// Base errors that all tools can use or extend with #[error(transparent)].
 #[derive(Error, Debug, Serialize, Deserialize)]
 pub enum BaseError {
     #[error("Invalid arguments: {0}")]
@@ -55,18 +55,18 @@ impl BaseError {
     }
 }
 
-/// WASI target for compilation and execution
+/// WASI target for compilation and execution.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum WasiTarget {
-    /// WASI preview1 - simpler, full exit code support, no networking
+    /// WASI preview1 - simpler, full exit code support, no networking.
     #[default]
     Preview1,
-    /// WASI preview2 - networking support via wasi-http, exit codes limited to 0/1
+    /// WASI preview2 - networking support via wasi-http, exit codes limited to 0/1.
     Preview2,
 }
 
-/// Tool metadata embedded in binaries, returned via --describe
+/// Tool metadata embedded in binaries, returned via --describe.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolMetadata {
     pub name: String,
@@ -75,7 +75,7 @@ pub struct ToolMetadata {
     pub args: Vec<ArgSpec>,
     pub errors: Vec<ErrorSpec>,
     pub capabilities: Capabilities,
-    /// WASI target (preview1 or preview2). Required to be preview2 if net capability is true.
+    /// WASI target (preview1 or preview2), required to be preview2 if net capability is true.
     #[serde(default)]
     pub wasi_target: WasiTarget,
 }
@@ -107,7 +107,7 @@ pub struct Capabilities {
     pub net: bool,
 }
 
-/// Helper to print metadata JSON for --describe flag
+/// Helper to print metadata JSON for --describe flag.
 ///
 /// # Panics
 /// Panics if metadata cannot be serialized to JSON (should never happen with valid metadata).

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::{describe_tool, project_root, run_tool};
 
 #[test]
@@ -22,15 +24,19 @@ fn with_pattern() {
 
     assert!(
         output.status.success(),
-        "wasi-runner failed with stderr: {}",
-        stderr
+        "wasi-runner failed with stderr: {stderr}"
     );
 
-    let files: Vec<String> =
-        serde_json::from_str(&stdout).expect(&format!("failed to parse JSON output: {}", stdout));
+    let files: Vec<String> = serde_json::from_str(&stdout)
+        .unwrap_or_else(|_| panic!("failed to parse JSON output: {stdout}"));
 
     for file in &files {
-        assert!(file.ends_with(".rs"), "expected .rs file, got: {}", file);
+        assert!(
+            Path::new(file)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("rs")),
+            "expected .rs file, got: {file}"
+        );
     }
 }
 
@@ -46,8 +52,7 @@ fn describe() {
 
     assert!(
         output.status.success(),
-        "wasi-runner describe failed with stderr: {}",
-        stderr
+        "wasi-runner describe failed with stderr: {stderr}"
     );
 
     let metadata: serde_json::Value =

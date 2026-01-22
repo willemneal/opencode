@@ -1,8 +1,9 @@
-use anyhow::Result;
-use sha1::{Digest, Sha1};
 use std::path::{Path, PathBuf};
 
-/// Compute git blob hash: SHA1("blob <size>\0<content>")
+use anyhow::Result;
+use sha1::{Digest, Sha1};
+
+/// Compute git blob hash: SHA1("blob <size>\0<content>").
 #[must_use]
 pub fn git_blob_hash(content: &[u8]) -> String {
     let header = format!("blob {}\0", content.len());
@@ -12,19 +13,19 @@ pub fn git_blob_hash(content: &[u8]) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Get cache directory (project-local)
+/// Get cache directory (project-local).
 #[must_use]
 pub fn cache_dir(project_root: &Path) -> PathBuf {
     project_root.join(".opencode/cache/wasi")
 }
 
-/// Get cached WASM path for a given hash
+/// Get cached WASM path for a given hash.
 #[must_use]
 pub fn cache_path(project_root: &Path, hash: &str) -> PathBuf {
     cache_dir(project_root).join(format!("{hash}.wasm"))
 }
 
-/// Check if cache is valid for the given source file
+/// Check if cache is valid for the given source file.
 ///
 /// # Errors
 /// Returns an error if the source file cannot be read.
@@ -40,7 +41,7 @@ pub fn is_cached(project_root: &Path, source: &Path) -> Result<Option<PathBuf>> 
     }
 }
 
-/// Get the hash for a source file
+/// Get the hash for a source file.
 ///
 /// # Errors
 /// Returns an error if the source file cannot be read.

@@ -1,9 +1,10 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
 use wasi_runner::{
-    Capabilities, ensure_compiled, extract, extract_target_from_source, is_cached, list_tools,
-    run_wasm,
+    ensure_compiled, extract, extract_target_from_source, is_cached, list_tools, run_wasm,
+    Capabilities,
 };
 
 #[derive(Parser)]

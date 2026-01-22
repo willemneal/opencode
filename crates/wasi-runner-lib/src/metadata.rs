@@ -1,16 +1,18 @@
-use crate::executor::{self, Capabilities};
-use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
 use wasi_tool_error::{ToolMetadata, WasiTarget};
 
-/// Extract metadata from a compiled WASM tool by running --describe
+use crate::executor::{self, Capabilities};
+
+/// Extract metadata from a compiled WASM tool by running --describe.
 ///
 /// # Errors
 /// Returns an error if the tool fails to run or returns invalid metadata.
 pub fn extract(wasm_path: &Path, target: WasiTarget) -> Result<ToolMetadata> {
     let caps = Capabilities {
-        read_dirs: vec![],
-        write_dirs: vec![],
+        read_dirs: Vec::new(),
+        write_dirs: Vec::new(),
         allow_net: false,
     };
 
@@ -27,13 +29,47 @@ pub fn extract(wasm_path: &Path, target: WasiTarget) -> Result<ToolMetadata> {
     serde_json::from_str(&result.stdout).context("Failed to parse tool metadata")
 }
 
-/// Extract just the `WasiTarget` from a source file's frontmatter
+/// Extract just the `WasiTarget` from a source file's frontmatter.
 ///
 /// # Errors
 /// Returns an error if the source file cannot be read or has invalid frontmatter.
 pub fn extract_target_from_source(source: &Path) -> Result<WasiTarget> {
     let content = std::fs::read_to_string(source).context("Failed to read source file")?;
     extract_target_from_frontmatter(&content)
+}
+
+/// Extract metadata from the cargo frontmatter of a source file.
+/// Looks for [package.metadata.wasi-tool] section.
+///
+/// # Errors
+/// Returns an error if the source file cannot be read or has invalid frontmatter.
+pub fn extract_from_source(source: &Path) -> Result<ToolMetadata> {
+    let content = std::fs::read_to_string(source).context("Failed to read source file")?;
+    extract_from_frontmatter(&content)
+}
+
+/// List all .rs tool files in a directory.
+///
+/// # Errors
+/// Returns an error if the directory cannot be read.
+pub fn list_tools(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut tools = Vec::new();
+
+    if !dir.exists() {
+        return Ok(tools);
+    }
+
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.extension().is_some_and(|e| e == "rs") {
+            tools.push(path);
+        }
+    }
+
+    tools.sort();
+    Ok(tools)
 }
 
 fn extract_target_from_frontmatter(source: &str) -> Result<WasiTarget> {
@@ -70,28 +106,18 @@ fn extract_target_from_frontmatter(source: &str) -> Result<WasiTarget> {
     Ok(wasi_target)
 }
 
-/// Extract metadata from the cargo frontmatter of a source file
-/// Looks for [package.metadata.wasi-tool] section
-///
-/// # Errors
-/// Returns an error if the source file cannot be read or has invalid frontmatter.
-pub fn extract_from_source(source: &Path) -> Result<ToolMetadata> {
-    let content = std::fs::read_to_string(source).context("Failed to read source file")?;
-    extract_from_frontmatter(&content)
-}
-
-/// Parse metadata from cargo frontmatter content
+/// Parse metadata from cargo frontmatter content.
 #[allow(clippy::too_many_lines)]
 fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
     let lines: Vec<&str> = source.lines().collect();
 
-    // Find the start marker (---cargo)
+    // Find the start marker (---cargo).
     let start = lines
         .iter()
         .position(|line| line.trim() == "---cargo")
         .context("No ---cargo frontmatter found")?;
 
-    // Find the end marker (---)
+    // Find the end marker (---).
     let end = lines
         .iter()
         .skip(start + 1)
@@ -100,13 +126,13 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         + start
         + 1;
 
-    // Extract manifest (between markers)
+    // Extract manifest (between markers).
     let manifest = lines[start + 1..end].join("\n");
 
-    // Parse as TOML
+    // Parse as TOML.
     let parsed: toml::Value = toml::from_str(&manifest).context("Failed to parse TOML manifest")?;
 
-    // Extract [package.metadata.wasi-tool]
+    // Extract [package.metadata.wasi-tool].
     let metadata = parsed
         .get("package")
         .and_then(|p| p.get("metadata"))
@@ -131,7 +157,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         .unwrap_or("")
         .to_string();
 
-    // Parse capabilities
+    // Parse capabilities.
     let caps = metadata.get("capabilities");
     let capabilities = wasi_tool_error::Capabilities {
         read: caps
@@ -148,7 +174,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
             .unwrap_or(false),
     };
 
-    // Parse wasi_target
+    // Parse wasi_target.
     let wasi_target = metadata
         .get("wasi_target")
         .and_then(|v| v.as_str())
@@ -158,12 +184,12 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         })
         .unwrap_or_default();
 
-    // Validate: net capability requires preview2
+    // Validate: net capability requires preview2.
     if capabilities.net && wasi_target != wasi_tool_error::WasiTarget::Preview2 {
         anyhow::bail!("net capability requires wasi_target = \"preview2\"");
     }
 
-    // Parse args if present
+    // Parse args if present.
     let args = metadata
         .get("args")
         .and_then(|a| a.as_array())
@@ -192,7 +218,7 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         })
         .unwrap_or_default();
 
-    // Parse errors if present
+    // Parse errors if present.
     let errors = metadata
         .get("errors")
         .and_then(|e| e.as_array())
@@ -218,30 +244,6 @@ fn extract_from_frontmatter(source: &str) -> Result<ToolMetadata> {
         capabilities,
         wasi_target,
     })
-}
-
-/// List all .rs tool files in a directory
-///
-/// # Errors
-/// Returns an error if the directory cannot be read.
-pub fn list_tools(dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut tools = Vec::new();
-
-    if !dir.exists() {
-        return Ok(tools);
-    }
-
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-
-        if path.extension().is_some_and(|e| e == "rs") {
-            tools.push(path);
-        }
-    }
-
-    tools.sort();
-    Ok(tools)
 }
 
 #[cfg(test)]

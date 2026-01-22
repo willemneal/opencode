@@ -12,8 +12,7 @@ fn describe() {
 
     assert!(
         output.status.success(),
-        "wasi-runner describe failed with stderr: {}",
-        stderr
+        "wasi-runner describe failed with stderr: {stderr}"
     );
 
     let metadata: serde_json::Value =
@@ -89,8 +88,7 @@ fn cargo_script() {
 
     assert!(
         output.status.success(),
-        "search failed with stderr: {}",
-        stderr
+        "search failed with stderr: {stderr}"
     );
 
     let result: serde_json::Value =

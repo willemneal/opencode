@@ -12,12 +12,11 @@ fn runs() {
 
     assert!(
         output.status.success(),
-        "wasi-runner failed with stderr: {}",
-        stderr
+        "wasi-runner failed with stderr: {stderr}"
     );
 
-    let _files: Vec<String> =
-        serde_json::from_str(&stdout).expect(&format!("failed to parse JSON output: {}", stdout));
+    let _files: Vec<String> = serde_json::from_str(&stdout)
+        .unwrap_or_else(|_| panic!("failed to parse JSON output: {stdout}"));
 }
 
 #[test]
