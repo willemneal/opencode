@@ -1,26 +1,11 @@
-use std::path::PathBuf;
-use std::process::Command;
-
-fn project_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
-}
+use super::{describe_tool, project_root, run_tool};
 
 #[test]
-fn test_github_pr_search_describe() {
+fn describe() {
     let root = project_root();
     let tool_path = root.join("crates/bin/github_pr_search.rs");
 
-    let output = Command::new("cargo")
-        .args(["+nightly", "run", "--bin", "wasi-runner", "describe"])
-        .arg(&tool_path)
-        .current_dir(&root)
-        .output()
-        .expect("failed to execute wasi-runner describe");
+    let output = describe_tool(&tool_path);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -50,49 +35,26 @@ fn test_github_pr_search_describe() {
 }
 
 #[test]
-fn test_github_pr_search_no_query() {
+fn no_query() {
     let root = project_root();
     let tool_path = root.join("crates/bin/github_pr_search.rs");
 
-    let output = Command::new("cargo")
-        .args([
-            "+nightly",
-            "run",
-            "--bin",
-            "wasi-runner",
-            "run",
-            "--allow-net",
-        ])
-        .arg(&tool_path)
-        .arg("--")
-        .current_dir(&root)
-        .env_remove("GITHUB_TOKEN")
-        .output()
-        .expect("failed to execute wasi-runner");
+    let output = run_tool(&tool_path, None, true, &[]);
 
     assert!(!output.status.success());
 }
 
 #[test]
-fn test_github_pr_search_invalid_state() {
+fn invalid_state() {
     let root = project_root();
     let tool_path = root.join("crates/bin/github_pr_search.rs");
 
-    let output = Command::new("cargo")
-        .args([
-            "+nightly",
-            "run",
-            "--bin",
-            "wasi-runner",
-            "run",
-            "--allow-net",
-        ])
-        .arg(&tool_path)
-        .arg("--")
-        .args(["--query", "test", "--state", "invalid"])
-        .current_dir(&root)
-        .output()
-        .expect("failed to execute wasi-runner");
+    let output = run_tool(
+        &tool_path,
+        None,
+        true,
+        &["--query", "test", "--state", "invalid"],
+    );
 
     assert!(!output.status.success());
     assert_eq!(output.status.code(), Some(1));
@@ -100,22 +62,15 @@ fn test_github_pr_search_invalid_state() {
 
 /// Search for the cargo script RFC PR in rust-lang/cargo.
 #[test]
-fn test_github_pr_search_cargo_script() {
+fn cargo_script() {
     let root = project_root();
     let tool_path = root.join("crates/bin/github_pr_search.rs");
 
-    let output = Command::new("cargo")
-        .args([
-            "+nightly",
-            "run",
-            "--bin",
-            "wasi-runner",
-            "run",
-            "--allow-net",
-        ])
-        .arg(&tool_path)
-        .arg("--")
-        .args([
+    let output = run_tool(
+        &tool_path,
+        None,
+        true,
+        &[
             "--query",
             "cargo script",
             "--owner",
@@ -126,10 +81,8 @@ fn test_github_pr_search_cargo_script() {
             "all",
             "--limit",
             "5",
-        ])
-        .current_dir(&root)
-        .output()
-        .expect("failed to execute wasi-runner");
+        ],
+    );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);

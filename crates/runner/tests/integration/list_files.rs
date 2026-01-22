@@ -1,39 +1,11 @@
-use std::path::PathBuf;
-use std::process::Command;
+use super::{project_root, run_tool, test_bin_dir};
 
-fn project_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .unwrap()
-        .parent()
-        .unwrap()
-        .to_path_buf()
-}
-
-fn test_bin_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/bin")
-}
-
-/// Tests that list_files runs and returns valid JSON.
 #[test]
-fn test_list_files_runs() {
+fn runs() {
     let root = project_root();
     let tool_path = test_bin_dir().join("list_files.rs");
 
-    let output = Command::new("cargo")
-        .args([
-            "+nightly",
-            "run",
-            "--bin",
-            "wasi-runner",
-            "run",
-            "--allow-read",
-        ])
-        .arg(&root)
-        .arg(&tool_path)
-        .current_dir(&root)
-        .output()
-        .expect("failed to execute wasi-runner");
+    let output = run_tool(&tool_path, Some(&root), false, &[]);
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -44,14 +16,12 @@ fn test_list_files_runs() {
         stderr
     );
 
-    // Parse the JSON output - should be a valid JSON array
     let _files: Vec<String> =
         serde_json::from_str(&stdout).expect(&format!("failed to parse JSON output: {}", stdout));
 }
 
-/// Tests extracting metadata from the cargo frontmatter header.
 #[test]
-fn test_list_files_metadata_from_source() {
+fn metadata_from_source() {
     let tool_path = test_bin_dir().join("list_files.rs");
 
     let metadata =
