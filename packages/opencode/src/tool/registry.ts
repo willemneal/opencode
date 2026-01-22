@@ -27,6 +27,7 @@ import { LspTool } from "./lsp"
 import { Truncate } from "./truncation"
 import { PlanExitTool, PlanEnterTool } from "./plan"
 import { ApplyPatchTool } from "./apply_patch"
+import { WasiTool } from "./wasi"
 
 export namespace ToolRegistry {
   const log = Log.create({ service: "tool.registry" })
@@ -54,6 +55,36 @@ export namespace ToolRegistry {
     for (const plugin of plugins) {
       for (const [id, def] of Object.entries(plugin.tool ?? {})) {
         custom.push(fromPlugin(id, def))
+      }
+    }
+
+    // WASI tool discovery
+    const wasiGlob = new Bun.Glob("{wasi-tool,wasi-tools}/*.rs")
+
+    for (const dir of await Config.directories()) {
+      for await (const match of wasiGlob.scan({
+        cwd: dir,
+        absolute: true,
+        followSymlinks: true,
+        dot: true,
+      })) {
+        try {
+          const toolPath = match
+          const name = path.basename(match, ".rs")
+
+          // Default config: read access to project directory only
+          const config: WasiTool.ToolConfig = {
+            path: toolPath,
+            capabilities: {
+              read: ["${PROJECT}"],
+            },
+          }
+
+          custom.push(WasiTool.create(name, toolPath, config))
+          log.info("registered wasi tool", { name, path: toolPath })
+        } catch (err) {
+          log.error("failed to load wasi tool", { path: match, err })
+        }
       }
     }
 

@@ -1088,6 +1088,13 @@ export namespace Config {
             .describe("Timeout in milliseconds for model context protocol (MCP) requests"),
         })
         .optional(),
+      wasi: z
+        .object({
+          runner: z.string().optional().describe("Path to wasi-runner binary relative to project root"),
+          tools_dir: z.string().optional().describe("Directory containing WASI tools"),
+        })
+        .optional()
+        .describe("WASI sandboxed tools configuration"),
     })
     .strict()
     .meta({
