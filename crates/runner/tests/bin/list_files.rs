@@ -15,17 +15,19 @@ write = false
 net = false
 
 [dependencies]
-serde_json = { workspace = true }
 ---
 
 fn main() {
-    let entries: Vec<String> = std::fs::read_dir(".")
-        .map(|dir| {
-            dir.filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().to_string())
-                .collect()
-        })
-        .unwrap_or_default();
-
-    println!("{}", serde_json::to_string_pretty(&entries).unwrap());
+    print!("[");
+    let mut first = true;
+    if let Ok(dir) = std::fs::read_dir(".") {
+        for entry in dir.flatten() {
+            if !first {
+                print!(",");
+            }
+            first = false;
+            print!("\"{}\"", entry.file_name().to_string_lossy());
+        }
+    }
+    println!("]");
 }
