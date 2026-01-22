@@ -7,11 +7,30 @@ edition = "2024"
 [dependencies]
 serde_json = { workspace = true }
 glob = { workspace = true }
+clap = { workspace = true }
 wasi-tool-error = { workspace = true }
 ---
 
-use std::{env, process};
-use wasi_tool_error::{codes, ArgSpec, Capabilities, ErrorSpec, ToolMetadata};
+use clap::Parser;
+use std::process;
+use wasi_tool_error::{ArgSpec, Capabilities, ErrorSpec, ToolMetadata};
+
+#[derive(Parser)]
+#[command(name = "file_search")]
+#[command(about = "Searches for files matching a glob pattern in directories")]
+struct Args {
+    /// Print tool metadata as JSON
+    #[arg(long)]
+    describe: bool,
+
+    /// Glob pattern to match files (e.g., '*.rs', '**/*.ts')
+    #[arg(long)]
+    pattern: Option<String>,
+
+    /// Directory to search in
+    #[arg(long, default_value = ".")]
+    directory: String,
+}
 
 fn metadata() -> ToolMetadata {
     ToolMetadata {
@@ -53,48 +72,28 @@ fn metadata() -> ToolMetadata {
 }
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    // Handle --describe for metadata extraction
-    if args.get(1).map(|s| s.as_str()) == Some("--describe") {
+    if args.describe {
         wasi_tool_error::print_metadata(&metadata());
         return;
     }
 
-    // Handle --help
-    if args.get(1).map(|s| s.as_str()) == Some("--help") {
-        eprintln!("file_search - Searches for files matching a glob pattern");
-        eprintln!();
-        eprintln!("Usage: file_search <pattern> [directory]");
-        eprintln!();
-        eprintln!("Arguments:");
-        eprintln!("  pattern    Glob pattern to match files (e.g., '*.rs', '**/*.ts')");
-        eprintln!("  directory  Directory to search in (default: '.')");
-        return;
-    }
-
-    // Parse arguments
-    let pattern = match args.get(1) {
+    let pattern = match args.pattern {
         Some(p) => p,
         None => {
-            eprintln!("Error: pattern argument required");
-            eprintln!("Usage: file_search <pattern> [directory]");
-            process::exit(codes::INVALID_ARGS);
+            eprintln!("Error: --pattern is required");
+            process::exit(1);
         }
     };
 
-    let directory = args.get(2).map(|s| s.as_str()).unwrap_or(".");
-
-    // Validate directory exists
-    if !std::path::Path::new(directory).exists() {
-        eprintln!("Error: directory '{}' does not exist", directory);
+    if !std::path::Path::new(&args.directory).exists() {
+        eprintln!("Error: directory '{}' does not exist", args.directory);
         process::exit(101);
     }
 
-    // Build full pattern
-    let full_pattern = format!("{}/{}", directory, pattern);
+    let full_pattern = format!("{}/{}", args.directory, pattern);
 
-    // Search files
     let matches: Vec<String> = match glob::glob(&full_pattern) {
         Ok(paths) => paths
             .filter_map(|p| p.ok())
@@ -107,6 +106,5 @@ fn main() {
         }
     };
 
-    // Output results as JSON
     println!("{}", serde_json::to_string_pretty(&matches).unwrap());
 }
