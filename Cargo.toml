@@ -1,0 +1,3 @@
+[workspace]
+members = ["crates/runner", "crates/wasi-tool-error"]
+resolver = "2"

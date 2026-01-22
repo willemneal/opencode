@@ -1,0 +1,10 @@
+[package]
+name = "wasi-tool-error"
+version = "0.1.0"
+edition = "2024"
+description = "Shared error types for OpenCode WASI tools"
+
+[dependencies]
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
