@@ -1,3 +1,8 @@
 [workspace]
 members = ["crates/runner", "crates/wasi-tool-error"]
 resolver = "2"
+
+[workspace.dependencies]
+wasi-tool-error = { path = "crates/wasi-tool-error" }
+serde_json = "1"
+glob = "0.3"

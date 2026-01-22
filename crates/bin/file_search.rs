@@ -5,9 +5,9 @@ name = "file_search"
 edition = "2024"
 
 [dependencies]
-serde_json = "1"
-glob = "0.3"
-wasi-tool-error = { path = "../wasi-tool-error" }
+serde_json = { workspace = true }
+glob = { workspace = true }
+wasi-tool-error = { workspace = true }
 ---
 
 use std::{env, process};
@@ -58,6 +58,18 @@ fn main() {
     // Handle --describe for metadata extraction
     if args.get(1).map(|s| s.as_str()) == Some("--describe") {
         wasi_tool_error::print_metadata(&metadata());
+        return;
+    }
+
+    // Handle --help
+    if args.get(1).map(|s| s.as_str()) == Some("--help") {
+        eprintln!("file_search - Searches for files matching a glob pattern");
+        eprintln!();
+        eprintln!("Usage: file_search <pattern> [directory]");
+        eprintln!();
+        eprintln!("Arguments:");
+        eprintln!("  pattern    Glob pattern to match files (e.g., '*.rs', '**/*.ts')");
+        eprintln!("  directory  Directory to search in (default: '.')");
         return;
     }
 
