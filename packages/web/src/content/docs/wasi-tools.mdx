@@ -1,0 +1,339 @@
+---
+title: WASI Tools
+description: Run sandboxed Rust tools compiled to WebAssembly.
+---
+
+WASI tools are Rust programs compiled to WebAssembly that run in a secure sandbox. They provide isolated execution with controlled access to the filesystem and network.
+
+---
+
+## Overview
+
+The WASI runner system consists of three crates:
+
+- **wasi-runner-lib** — Core library for compiling and executing WASI tools
+- **opencode-wasi-runner** — CLI for running tools from the terminal
+- **wasi-tool-error** — Shared error types and metadata structures
+
+Tools are written as single-file Rust scripts with cargo frontmatter. They get compiled to WebAssembly and cached for fast execution.
+
+---
+
+## Create a tool
+
+Tools are Rust files with embedded cargo manifest in the frontmatter. Place them in the `crates/bin/` directory.
+
+```rust title="crates/bin/my_tool.rs"
+#!/usr/bin/env -S cargo +nightly -Zscript
+---cargo
+[package]
+name = "my_tool"
+edition = "2024"
+
+[package.metadata.wasi-tool]
+wasi_target = "preview1"
+
+[package.metadata.wasi-tool.capabilities]
+read = true
+write = false
+net = false
+
+[dependencies]
+clap = { workspace = true }
+wasi-tool-error = { workspace = true }
+---
+
+use clap::Parser;
+
+#[derive(Parser)]
+struct Args {
+    #[arg(long)]
+    describe: bool,
+}
+
+fn main() {
+    let args = Args::parse();
+    if args.describe {
+        // Return tool metadata
+    }
+    println!("Hello from WASI!")
+}
+```
+
+---
+
+## Frontmatter
+
+The cargo frontmatter defines the tool's metadata and capabilities. It starts with `---cargo` and ends with `---`.
+
+```toml
+[package.metadata.wasi-tool]
+name = "my_tool"
+version = "1.0.0"
+description = "What the tool does"
+wasi_target = "preview1"
+
+[package.metadata.wasi-tool.capabilities]
+read = true
+write = false
+net = false
+```
+
+---
+
+### Target selection
+
+Two WASI targets are supported:
+
+| Target     | Description                                            |
+| ---------- | ------------------------------------------------------ |
+| `preview1` | Simpler runtime, full exit code support, no networking |
+| `preview2` | Networking via wasi-http, exit codes limited to 0/1    |
+
+Use `preview2` only when network access is needed.
+
+---
+
+## Capabilities
+
+Capabilities control what resources a tool can access:
+
+| Capability | Description                                 |
+| ---------- | ------------------------------------------- |
+| `read`     | Read access to preopened directories        |
+| `write`    | Write access to preopened directories       |
+| `net`      | Network access (requires `preview2` target) |
+
+The runner grants only the requested capabilities. This provides defense-in-depth against malicious or buggy tools.
+
+---
+
+## Define arguments
+
+Tools define their arguments using the metadata section. This enables validation and documentation.
+
+```toml
+[[package.metadata.wasi-tool.args]]
+name = "pattern"
+type = "string"
+description = "Glob pattern to match"
+required = true
+
+[[package.metadata.wasi-tool.args]]
+name = "limit"
+type = "number"
+description = "Max results"
+required = false
+default = "10"
+```
+
+Argument types: `string`, `number`, `boolean`, `array`
+
+---
+
+## Handle errors
+
+Tools use exit codes to signal errors. Standard codes are defined in `wasi-tool-error`:
+
+| Code | Meaning              |
+| ---- | -------------------- |
+| 0    | Success              |
+| 1    | Invalid arguments    |
+| 2    | File not found       |
+| 3    | Permission denied    |
+| 4    | Network error        |
+| 5    | Parse error          |
+| 6    | Timeout              |
+| 99   | Internal error       |
+| 100+ | Tool-specific errors |
+
+Define custom errors in the metadata:
+
+```toml
+[[package.metadata.wasi-tool.errors]]
+code = 100
+message = "Invalid pattern"
+```
+
+---
+
+## Describe metadata
+
+Every tool must support `--describe` to return its metadata as JSON. Use the helper function:
+
+```rust
+use wasi_tool_error::{ToolMetadata, print_metadata};
+
+fn main() {
+    let args = Args::parse();
+    if args.describe {
+        print_metadata(&metadata());
+        return;
+    }
+    // Tool logic
+}
+```
+
+---
+
+## Run from CLI
+
+Use the `wasi-runner` CLI to run tools:
+
+```bash
+# Run a tool
+wasi-runner run crates/bin/my_tool.rs -- --pattern "*.rs"
+
+# With filesystem access
+wasi-runner run crates/bin/my_tool.rs \
+  --allow-read /path/to/read \
+  --allow-write /path/to/write \
+  -- --pattern "*.rs"
+
+# With network access (preview2 only)
+wasi-runner run crates/bin/my_tool.rs --allow-net -- --query "search"
+```
+
+---
+
+### Other commands
+
+```bash
+# Get tool metadata
+wasi-runner describe crates/bin/my_tool.rs
+
+# List tools in a directory
+wasi-runner list crates/bin/
+
+# Check if tool needs recompilation
+wasi-runner check crates/bin/my_tool.rs
+```
+
+---
+
+## Caching
+
+Compiled WASM files are cached in `.opencode/cache/wasi/`. The cache key is the git blob hash of the source file. Changing the source invalidates the cache.
+
+```
+.opencode/cache/wasi/
+  abc123def456.wasm
+  789xyz012abc.wasm
+```
+
+---
+
+## Networking
+
+For tools that need HTTP access, use `preview2` target with the `net` capability:
+
+```toml
+[package.metadata.wasi-tool]
+wasi_target = "preview2"
+
+[package.metadata.wasi-tool.capabilities]
+net = true
+```
+
+Then use `wasi-http-client` in your tool:
+
+```rust
+use wasi_http_client::Client;
+
+let client = Client::new();
+let response = client.get("https://api.example.com").send()?;
+```
+
+---
+
+## Examples
+
+### File search tool
+
+A tool that finds files matching a glob pattern:
+
+```rust title="crates/bin/file_search.rs"
+#!/usr/bin/env -S cargo +nightly -Zscript
+---cargo
+[package]
+name = "file_search"
+edition = "2024"
+
+[package.metadata.wasi-tool]
+wasi_target = "preview1"
+
+[package.metadata.wasi-tool.capabilities]
+read = true
+
+[dependencies]
+glob = { workspace = true }
+clap = { workspace = true }
+---
+
+use clap::Parser;
+use glob::glob;
+
+#[derive(Parser)]
+struct Args {
+    #[arg(long)]
+    pattern: String,
+    #[arg(long, default_value = ".")]
+    directory: String,
+}
+
+fn main() {
+    let args = Args::parse();
+    let pattern = format!("{}/{}", args.directory, args.pattern);
+
+    for path in glob(&pattern).unwrap().filter_map(Result::ok) {
+        println!("{}", path.display());
+    }
+}
+```
+
+---
+
+### GitHub API tool
+
+A tool that searches GitHub PRs using network access:
+
+```rust title="crates/bin/github_search.rs"
+#!/usr/bin/env -S cargo +nightly -Zscript
+---cargo
+[package]
+name = "github_search"
+edition = "2024"
+
+[package.metadata.wasi-tool]
+wasi_target = "preview2"
+
+[package.metadata.wasi-tool.capabilities]
+net = true
+
+[dependencies]
+wasi-http-client = { version = "0.2", features = ["json"] }
+clap = { workspace = true }
+---
+
+use clap::Parser;
+use wasi_http_client::Client;
+
+#[derive(Parser)]
+struct Args {
+    #[arg(long)]
+    query: String,
+}
+
+fn main() {
+    let args = Args::parse();
+    let client = Client::new();
+
+    let response = client
+        .get(&format!("https://api.github.com/search/issues?q={}", args.query))
+        .header("User-Agent", b"my-tool".to_vec())
+        .send()
+        .unwrap();
+
+    println!("{}", response.text().unwrap());
+}
+```
